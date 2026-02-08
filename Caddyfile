@@ -1,0 +1,7 @@
+manadia.wandanial.com {
+    basicauth /pub {
+        owntracks $2a$14$pgjsiuIQePiirgjO.vG5Qe/c/QaMrVK0sFC07J.egV.XNEh2jQBxO
+    }
+
+    reverse_proxy app:8000
+}
