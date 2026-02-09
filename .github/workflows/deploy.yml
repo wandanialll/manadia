@@ -47,9 +47,9 @@ jobs:
             # Pull latest image
             docker pull ghcr.io/${{ github.repository }}:latest
 
-            # Update docker-compose and Caddyfile if they changed
-            # (Ideally, you copy these files over using scp, but for now we can create them or just restart)
-            # A simple restart is usually enough if the image changed:
+            # Download docker-compose.yml and Caddyfile from the repo
+            curl -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docker-compose.yml
+            curl -o Caddyfile https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/Caddyfile
 
             # Stop and remove old containers
             docker compose down || true
