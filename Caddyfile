@@ -3,5 +3,9 @@ manadia.wandanial.com {
         owntracks $2b$14$gCf5uUqODzSQtaMHb9lQ1u.MAL0tymuCe1qJBynsCUtRw/ZygMJrC
     }
 
+    basicauth /admin/* {
+        admin $2b$14$gCf5uUqODzSQtaMHb9lQ1u.MAL0tymuCe1qJBynsCUtRw/ZygMJrC
+    }
+
     reverse_proxy app:8000
 }

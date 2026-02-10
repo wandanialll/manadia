@@ -2,6 +2,8 @@ services:
   app:
     image: ghcr.io/wandanialll/manadia:latest
     restart: always
+    environment:
+      - API_KEYS=${API_KEYS}
     volumes:
       - ./data:/app/data
     ports:
