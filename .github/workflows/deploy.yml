@@ -53,9 +53,12 @@ jobs:
 
             # Check if repo already exists, if so update it
             if [ -d .git ]; then
+              # Repository exists, just pull latest
               git pull origin ${{ github.ref_name }}
             else
-              # Clone entire repository (includes frontend/ directory)
+              # Repository doesn't exist, clean up directory and clone fresh
+              rm -rf ./* 2>/dev/null || true
+              rm -rf .git .gitignore .dockerignore 2>/dev/null || true
               git clone --branch ${{ github.ref_name }} https://github.com/${{ github.repository }}.git .
             fi
 
