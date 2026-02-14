@@ -3,25 +3,30 @@ services:
     image: postgres:16
     restart: always
     environment:
-      POSTGRES_USER: manadia
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-manadia_dev}
-      POSTGRES_DB: manadia
+      POSTGRES_USER: ${DB_USER:-manadia}
+      POSTGRES_PASSWORD: ${DB_PASSWORD} # Required - no default!
+      POSTGRES_DB: ${DB_NAME:-manadia}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "${DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U manadia"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-manadia}"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   app:
-    image: ghcr.io/wandanialll/manadia:latest
+    image: ghcr.io/wandanialll/manadia@${MANADIA_IMAGE_DIGEST:-latest}
     restart: always
     environment:
-      - DATABASE_URL=postgresql://manadia:${DB_PASSWORD:-manadia_dev}@db:5432/manadia
-      - API_KEYS=${API_KEYS}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - DB_USER=${DB_USER:-manadia}
+      - DB_PASSWORD=${DB_PASSWORD} # Required
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME:-manadia}
+      - API_KEY_EXPIRATION_DAYS=${API_KEY_EXPIRATION_DAYS:-365}
     volumes:
       - ./data:/app/data
     ports:
@@ -37,9 +42,12 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    environment:
+      - CADDY_ADMIN_PASSWORD_HASH=${CADDY_ADMIN_PASSWORD_HASH} # Required
+      - CADDY_OWNTRACKS_PASSWORD_HASH=${CADDY_OWNTRACKS_PASSWORD_HASH} # Required
     depends_on:
       - app
 

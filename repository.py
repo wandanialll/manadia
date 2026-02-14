@@ -3,6 +3,7 @@ from sqlalchemy import and_, desc
 from datetime import datetime, date
 from models import Location, APIKey
 import json
+import bcrypt
 
 
 class LocationRepository:
@@ -67,23 +68,65 @@ class APIKeyRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, key: str, user_name: str, description: str = None) -> APIKey:
-        """Create a new API key"""
+    def create(self, key_hash: str, key_prefix: str, user_name: str, description: str = None, expires_at = None) -> APIKey:
+        """
+        Create a new API key.
+        
+        Args:
+            key_hash: bcrypt hash of the plaintext key
+            key_prefix: First 8 characters of plaintext key (for indexed lookups)
+            user_name: Username to associate with the key
+            description: Optional key description
+            expires_at: Optional expiration datetime
+        """
         api_key = APIKey(
-            key=key,
+            key_prefix=key_prefix,
+            key_hash=key_hash,
             user_name=user_name,
-            description=description
+            description=description,
+            expires_at=expires_at
         )
         self.db.add(api_key)
         self.db.commit()
         self.db.refresh(api_key)
         return api_key
 
-    def get_by_key(self, key: str) -> APIKey:
-        """Get API key by key string"""
-        return self.db.query(APIKey).filter(
-            and_(APIKey.key == key, APIKey.is_active == 1)
-        ).first()
+    def get_by_key_hash(self, plaintext_key: str) -> APIKey:
+        """
+        Get API key by comparing plaintext key against bcrypt hashes.
+        
+        Queries by key_prefix first (indexed), then verifies full hash.
+        
+        Args:
+            plaintext_key: The plaintext API key from the request
+            
+        Returns:
+            APIKey record if found and hash matches, None otherwise
+        """
+        if not plaintext_key or len(plaintext_key) < 8:
+            return None
+        
+        # Get first 8 characters as prefix
+        key_prefix = plaintext_key[:8]
+        
+        # Query by prefix (indexed for performance)
+        candidate_keys = self.db.query(APIKey).filter(
+            and_(
+                APIKey.key_prefix == key_prefix,
+                APIKey.is_active == 1
+            )
+        ).all()
+        
+        # Verify the full plaintext key against each candidate's bcrypt hash
+        for key_record in candidate_keys:
+            try:
+                if bcrypt.checkpw(plaintext_key.encode(), key_record.key_hash.encode()):
+                    return key_record
+            except Exception:
+                # Invalid hash format, skip this record
+                continue
+        
+        return None
 
     def get_by_user(self, user_name: str):
         """Get all active API keys for a user"""
@@ -91,13 +134,29 @@ class APIKeyRepository:
             and_(APIKey.user_name == user_name, APIKey.is_active == 1)
         ).all()
 
-    def revoke(self, key: str) -> bool:
-        """Revoke an API key"""
-        api_key = self.db.query(APIKey).filter(APIKey.key == key).first()
+    def update_last_used(self, key_id: int) -> None:
+        """Update the last_used timestamp for a key"""
+        key_record = self.db.query(APIKey).filter(APIKey.id == key_id).first()
+        if key_record:
+            key_record.last_used = datetime.utcnow()
+            self.db.commit()
+
+    def revoke(self, key_id: int) -> bool:
+        """
+        Revoke an API key by marking it inactive.
+        
+        Args:
+            key_id: The ID of the key to revoke
+            
+        Returns:
+            True if revoked successfully, False if not found
+        """
+        api_key = self.db.query(APIKey).filter(APIKey.id == key_id).first()
         if api_key:
             api_key.is_active = 0
             self.db.commit()
             return True
+        return False
         return False
 
     def update_last_used(self, key: str):

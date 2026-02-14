@@ -38,13 +38,16 @@ class APIKey(Base):
     __tablename__ = "api_keys"
 
     id = Column(Integer, primary_key=True, index=True)
-    key = Column(String(255), unique=True, nullable=False, index=True)
+    key_prefix = Column(String(8), nullable=False, index=True)  # First 8 chars for lookup
+    key_hash = Column(String(255), unique=True, nullable=False)  # bcrypt hash of full key
     user_name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=True)  # NULL = never expires
     last_used = Column(DateTime, nullable=True)
     is_active = Column(Integer, default=1)  # 1 = active, 0 = revoked
 
     __table_args__ = (
-        Index("idx_key_active", "key", "is_active"),
+        Index("idx_key_prefix_active", "key_prefix", "is_active"),
+        Index("idx_expires_at", "expires_at"),
     )

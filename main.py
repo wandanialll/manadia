@@ -5,11 +5,14 @@ from datetime import datetime, date
 import os
 import logging
 
+# Import config first to validate environment
+from config import Config
 from database import init_db, get_db
 from service import LocationService, APIKeyService
+from audit_logger import AuditLog, get_client_ip
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=Config.LOG_LEVEL)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Manadia Location Logger")
@@ -138,8 +141,11 @@ async def receive_location(request: Request, db: Session = Depends(get_db)):
         service = LocationService(db)
         location = service.ingest_location(data)
         return []
+    except ValueError as e:
+        logger.warning(f"Invalid location data: {e}")
+        raise HTTPException(status_code=400, detail="Invalid location data")
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error processing location: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -212,6 +218,7 @@ async def get_device_history(
 
 @app.post("/admin/generate-api-key")
 async def generate_api_key(
+    request: Request,
     user_name: str = Query(...),
     description: str = Query(None),
     db: Session = Depends(get_db)
@@ -220,13 +227,79 @@ async def generate_api_key(
     Generate a new API key for a user.
     Protected by Caddy basicauth at /admin/* path.
     """
-    service = APIKeyService(db)
-    result = service.generate_api_key(user_name, description)
-    return {**result, "message": "API key generated successfully"}
+    try:
+        # Input validation
+        if not user_name or not isinstance(user_name, str):
+            AuditLog.log_action(
+                action=AuditLog.ACTION_API_KEY_GENERATED,
+                user="admin",
+                status="failure",
+                details={"reason": "invalid_user_name"},
+                ip_address=get_client_ip(request)
+            )
+            raise HTTPException(status_code=400, detail="Invalid user_name parameter")
+        
+        if len(user_name) < 1 or len(user_name) > 255:
+            AuditLog.log_action(
+                action=AuditLog.ACTION_API_KEY_GENERATED,
+                user="admin",
+                status="failure",
+                details={"reason": "user_name_length_invalid"},
+                ip_address=get_client_ip(request)
+            )
+            raise HTTPException(status_code=400, detail="user_name must be 1-255 characters")
+        
+        if not user_name.replace('_', '').replace('-', '').isalnum():
+            AuditLog.log_action(
+                action=AuditLog.ACTION_API_KEY_GENERATED,
+                user="admin",
+                status="failure",
+                details={"reason": "user_name_invalid_characters"},
+                ip_address=get_client_ip(request)
+            )
+            raise HTTPException(status_code=400, detail="user_name must contain only alphanumeric characters, hyphens, and underscores")
+        
+        if description and len(description) > 1000:
+            AuditLog.log_action(
+                action=AuditLog.ACTION_API_KEY_GENERATED,
+                user="admin",
+                status="failure",
+                details={"reason": "description_too_long"},
+                ip_address=get_client_ip(request)
+            )
+            raise HTTPException(status_code=400, detail="description must be 1000 characters or less")
+        
+        service = APIKeyService(db)
+        result = service.generate_api_key(user_name, description)
+        
+        # Audit log success
+        AuditLog.log_action(
+            action=AuditLog.ACTION_API_KEY_GENERATED,
+            user=user_name,
+            status="success",
+            details={"description": description[:50] if description else None},  # Truncate for logging
+            ip_address=get_client_ip(request)
+        )
+        
+        return {**result, "message": "API key generated successfully"}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating API key: {type(e).__name__}")
+        AuditLog.log_action(
+            action=AuditLog.ACTION_API_KEY_GENERATED,
+            user="admin",
+            status="failure",
+            details={"reason": "internal_error"},
+            ip_address=get_client_ip(request)
+        )
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @app.post("/admin/revoke-api-key")
 async def revoke_api_key(
+    request: Request,
     api_key: str = Query(...),
     db: Session = Depends(get_db)
 ):
@@ -234,9 +307,53 @@ async def revoke_api_key(
     Revoke an API key.
     Protected by Caddy basicauth at /admin/* path.
     """
-    service = APIKeyService(db)
-    success = service.revoke_api_key(api_key)
-    if success:
-        return {"message": "API key revoked successfully"}
-    else:
-        raise HTTPException(status_code=404, detail="API key not found")
+    try:
+        if not api_key or not isinstance(api_key, str):
+            AuditLog.log_action(
+                action=AuditLog.ACTION_API_KEY_REVOKED,
+                user="admin",
+                status="failure",
+                details={"reason": "invalid_api_key"},
+                ip_address=get_client_ip(request)
+            )
+            raise HTTPException(status_code=400, detail="Invalid api_key parameter")
+        
+        service = APIKeyService(db)
+        
+        # Get key info before revoking for audit log
+        key_info = service.get_api_key_info(api_key)
+        
+        success = service.revoke_api_key(api_key)
+        if success:
+            # Audit log success
+            AuditLog.log_action(
+                action=AuditLog.ACTION_API_KEY_REVOKED,
+                user=key_info.get("user") if key_info else "unknown",
+                status="success",
+                details={"key_prefix": api_key[:8] if api_key else None},
+                ip_address=get_client_ip(request)
+            )
+            return {"message": "API key revoked successfully"}
+        else:
+            # Key not found
+            AuditLog.log_action(
+                action=AuditLog.ACTION_API_KEY_REVOKED,
+                user="admin",
+                status="failure",
+                details={"reason": "key_not_found"},
+                ip_address=get_client_ip(request)
+            )
+            raise HTTPException(status_code=404, detail="API key not found")
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error revoking API key: {type(e).__name__}")
+        AuditLog.log_action(
+            action=AuditLog.ACTION_API_KEY_REVOKED,
+            user="admin",
+            status="failure",
+            details={"reason": "internal_error"},
+            ip_address=get_client_ip(request)
+        )
+        raise HTTPException(status_code=500, detail="Internal Server Error")
