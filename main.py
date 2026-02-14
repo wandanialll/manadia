@@ -138,6 +138,13 @@ async def receive_location(request: Request, db: Session = Depends(get_db)):
     """
     try:
         data = await request.json()
+
+        # OwnTracks sends multiple message types; only process locations
+        msg_type = data.get("_type", "")
+        if msg_type != "location":
+            logger.debug(f"Ignoring OwnTracks message type: {msg_type}")
+            return []
+
         service = LocationService(db)
         location = service.ingest_location(data)
         return []
@@ -145,7 +152,7 @@ async def receive_location(request: Request, db: Session = Depends(get_db)):
         logger.warning(f"Invalid location data: {e}")
         raise HTTPException(status_code=400, detail="Invalid location data")
     except Exception as e:
-        logger.error(f"Error processing location: {type(e).__name__}")
+        logger.error(f"Error processing location: {type(e).__name__}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 

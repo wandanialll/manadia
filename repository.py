@@ -14,6 +14,7 @@ class LocationRepository:
 
     def create(self, latitude: float, longitude: float, timestamp: datetime, **kwargs) -> Location:
         """Create a new location record"""
+        raw = kwargs.pop("raw_data", None)
         location = Location(
             latitude=latitude,
             longitude=longitude,
@@ -25,11 +26,15 @@ class LocationRepository:
             battery=kwargs.get("battery"),
             connection=kwargs.get("connection"),
             user_id=kwargs.get("user_id"),
-            raw_data=json.dumps(kwargs) if kwargs else None,
+            raw_data=json.dumps(raw) if raw else None,
         )
         self.db.add(location)
-        self.db.commit()
-        self.db.refresh(location)
+        try:
+            self.db.commit()
+            self.db.refresh(location)
+        except Exception:
+            self.db.rollback()
+            raise
         return location
 
     def get_all(self, limit: int = None, offset: int = 0):

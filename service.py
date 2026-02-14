@@ -26,9 +26,14 @@ class LocationService:
         else:
             timestamp = datetime.utcnow()
 
+        lat = data.get("lat")
+        lon = data.get("lon")
+        if lat is None or lon is None:
+            raise ValueError("Missing required lat/lon fields")
+
         location = self.location_repo.create(
-            latitude=data.get("lat"),
-            longitude=data.get("lon"),
+            latitude=lat,
+            longitude=lon,
             timestamp=timestamp,
             altitude=data.get("alt"),
             accuracy=data.get("acc"),
@@ -37,7 +42,7 @@ class LocationService:
             battery=data.get("batt"),
             connection=data.get("conn"),
             user_id=data.get("user"),
-            **data  # Store all extra fields
+            raw_data=data,
         )
         return location
 
