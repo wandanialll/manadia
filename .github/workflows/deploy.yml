@@ -31,16 +31,11 @@ jobs:
 
       - name: Deploy to Droplet via SSH
         uses: appleboy/ssh-action@v1.0.3
-        env:
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          CADDY_ADMIN_PASSWORD_HASH: ${{ secrets.CADDY_ADMIN_PASSWORD_HASH }}
-          CADDY_OWNTRACKS_PASSWORD_HASH: ${{ secrets.CADDY_OWNTRACKS_PASSWORD_HASH }}
         with:
           host: ${{ secrets.HOST }}
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
-          envs: DB_PASSWORD,CADDY_ADMIN_PASSWORD_HASH,CADDY_OWNTRACKS_PASSWORD_HASH
           script: |
             # Create project directory
             mkdir -p /opt/location-logger
@@ -56,36 +51,38 @@ jobs:
             curl -o docker-compose.yml https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/docker-compose.yml
             curl -o Caddyfile https://raw.githubusercontent.com/${{ github.repository }}/${{ github.ref_name }}/Caddyfile
 
-            # Create .env file from environment variables (passed from GitHub Secrets)
-            cat > .env << EOF
-            DB_PASSWORD=$DB_PASSWORD
-            DB_USER=manadia
-            DB_NAME=manadia
-            DB_HOST=db
-            DB_PORT=5432
-            CADDY_ADMIN_PASSWORD_HASH=$CADDY_ADMIN_PASSWORD_HASH
-            CADDY_OWNTRACKS_PASSWORD_HASH=$CADDY_OWNTRACKS_PASSWORD_HASH
-            LOG_LEVEL=INFO
-            API_KEY_EXPIRATION_DAYS=365
-            EOF
+            # Ensure .env file exists with required credentials
+            if [ ! -f .env ]; then
+              echo "ERROR: .env file not found in /opt/location-logger/"
+              echo "You must create a .env file with the following variables:"
+              echo "  DB_PASSWORD=your_secure_password"
+              echo "  CADDY_ADMIN_PASSWORD_HASH=your_admin_hash"
+              echo "  CADDY_OWNTRACKS_PASSWORD_HASH=your_owntracks_hash"
+              echo ""
+              echo "See .env.example for instructions on generating password hashes:"
+              echo "  curl https://raw.githubusercontent.com/${{ github.repository }}/main/.env.example"
+              exit 1
+            fi
 
             # Verify required variables are set
+            set -a
+            source .env
+            set +a
+
             if [ -z "$DB_PASSWORD" ]; then
-              echo "ERROR: DB_PASSWORD is not set"
+              echo "ERROR: DB_PASSWORD is not set in .env file"
               exit 1
             fi
 
             if [ -z "$CADDY_ADMIN_PASSWORD_HASH" ]; then
-              echo "ERROR: CADDY_ADMIN_PASSWORD_HASH is not set"
+              echo "ERROR: CADDY_ADMIN_PASSWORD_HASH is not set in .env file"
               exit 1
             fi
 
             if [ -z "$CADDY_OWNTRACKS_PASSWORD_HASH" ]; then
-              echo "ERROR: CADDY_OWNTRACKS_PASSWORD_HASH is not set"
+              echo "ERROR: CADDY_OWNTRACKS_PASSWORD_HASH is not set in .env file"
               exit 1
             fi
-
-            echo "✓ .env file created from GitHub Secrets"
 
             # Stop and remove old containers
             docker compose down || true

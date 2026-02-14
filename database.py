@@ -1,4 +1,5 @@
 import os
+import time
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from models import Base
@@ -29,8 +30,19 @@ def get_db() -> Session:
         db.close()
 
 
-def init_db():
-    """Initialize database tables"""
-    Base.metadata.create_all(bind=engine)
-    logger.info("✓ Database tables initialized")
+def init_db(retries: int = 5, delay: int = 3):
+    """Initialize database tables with retry logic for container startup ordering"""
+    for attempt in range(1, retries + 1):
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("✓ Database tables initialized")
+            return
+        except Exception as e:
+            if attempt < retries:
+                logger.warning(f"Database connection attempt {attempt}/{retries} failed: {e}")
+                logger.info(f"Retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                logger.critical(f"Failed to connect to database after {retries} attempts: {e}")
+                raise
 

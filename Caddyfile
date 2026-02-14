@@ -1,10 +1,10 @@
 manadia.wandanial.com {
     basicauth /pub {
-        owntracks $2b$14$gCf5uUqODzSQtaMHb9lQ1u.MAL0tymuCe1qJBynsCUtRw/ZygMJrC
+        owntracks {$CADDY_OWNTRACKS_PASSWORD_HASH}
     }
 
     basicauth /admin/* {
-        admin $2b$14$gCf5uUqODzSQtaMHb9lQ1u.MAL0tymuCe1qJBynsCUtRw/ZygMJrC
+        admin {$CADDY_ADMIN_PASSWORD_HASH}
     }
 
     reverse_proxy app:8000
