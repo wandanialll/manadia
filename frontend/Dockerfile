@@ -1,27 +1,33 @@
-# Build stage
+# Build stage - with better caching
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Copy package files
 COPY package.json package-lock.json* yarn.lock* ./
 
-RUN if [ -f package-lock.json ]; then npm ci; elif [ -f yarn.lock ]; then yarn install --frozen-lockfile; else npm install; fi
+# Install dependencies
+RUN npm ci --only=production && \
+    npm ci
 
+# Copy source code
 COPY . .
 
+# Build
 RUN npm run build
 
-# Production stage
+# Production stage - serve with http-server
 FROM node:20-alpine
 
 WORKDIR /app
 
-# Install a simple HTTP server to serve static files
-RUN npm install -g http-server
+# Install http-server globally
+RUN npm install -g http-server@14.1.1
 
-# Copy only the built dist folder
+# Copy built app from builder
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["http-server", "dist", "-p", "3000", "-c-1"]
+# Serve the dist folder
+CMD ["http-server", "dist", "-p", "3000", "-c-1", "--gzip"]
