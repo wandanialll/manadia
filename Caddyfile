@@ -14,6 +14,7 @@ manadia.wandanial.com {
 
 	# Route dashboard to frontend service
 	handle /dashboard/* {
+		uri strip_prefix /dashboard
 		reverse_proxy frontend:3000
 	}
 
