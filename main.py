@@ -3,16 +3,122 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from datetime import datetime, date
 import os
+import logging
 
 from database import init_db, get_db
 from service import LocationService, APIKeyService
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(title="Manadia Location Logger")
 
-# Initialize database on startup
+
+def run_migration():
+    """Run data migration from JSONL to PostgreSQL on startup"""
+    import json
+    from models import Location
+    
+    jsonl_file = "data/locations.jsonl"
+    
+    if not os.path.exists(jsonl_file):
+        logger.info("No JSONL file found, skipping migration")
+        return
+    
+    try:
+        from database import SessionLocal
+        db = SessionLocal()
+        
+        # Check if data already migrated
+        existing_count = db.query(Location).count()
+        if existing_count > 0:
+            logger.info(f"Migration already completed: {existing_count} records in DB")
+            db.close()
+            return
+        
+        logger.info("Starting migration from JSONL to PostgreSQL...")
+        migrated_count = 0
+        skipped_count = 0
+        
+        with open(jsonl_file, "r") as f:
+            for line_num, line in enumerate(f, 1):
+                try:
+                    if not line.strip():
+                        continue
+                    
+                    data = json.loads(line)
+                    
+                    # Skip non-location records (status messages, etc)
+                    if data.get("_type") != "location" and not (data.get("lat") and data.get("lon")):
+                        skipped_count += 1
+                        continue
+                    
+                    # Parse timestamp
+                    tst = data.get("tst")
+                    if tst:
+                        try:
+                            timestamp = datetime.fromtimestamp(tst)
+                        except (ValueError, OSError):
+                            timestamp = datetime.utcnow()
+                    else:
+                        timestamp = datetime.utcnow()
+                    
+                    # Parse server received timestamp
+                    server_received_at = data.get("_server_received_at")
+                    if server_received_at:
+                        try:
+                            server_received_at = datetime.fromisoformat(
+                                server_received_at.replace('Z', '+00:00')
+                            )
+                        except (ValueError, AttributeError):
+                            server_received_at = datetime.utcnow()
+                    else:
+                        server_received_at = datetime.utcnow()
+                    
+                    # Create location record
+                    location = Location(
+                        latitude=data.get("lat"),
+                        longitude=data.get("lon"),
+                        altitude=data.get("alt"),
+                        accuracy=data.get("acc"),
+                        timestamp=timestamp,
+                        device_id=data.get("devid") or data.get("deviceId"),
+                        tracker_id=data.get("tid"),
+                        battery=data.get("batt"),
+                        connection=data.get("conn"),
+                        user_id=data.get("user"),
+                        server_received_at=server_received_at,
+                        raw_data=json.dumps(data)
+                    )
+                    
+                    db.add(location)
+                    migrated_count += 1
+                    
+                    # Commit in batches
+                    if migrated_count % 100 == 0:
+                        db.commit()
+                        logger.info(f"  Migrated {migrated_count} records...")
+                
+                except Exception as e:
+                    logger.warning(f"  Error on line {line_num}: {e}")
+                    continue
+        
+        # Final commit
+        db.commit()
+        db.close()
+        
+        logger.info(f"Migration complete! Migrated: {migrated_count}, Skipped: {skipped_count}")
+    
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+
+
+# Initialize database and run migration on startup
 @app.on_event("startup")
 def startup():
     init_db()
+    run_migration()
 
 
 @app.get("/")

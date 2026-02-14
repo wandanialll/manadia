@@ -42,7 +42,10 @@ def migrate_jsonl_to_db():
                     
                     data = json.loads(line)
                     
-                    # Parse timestamp - OwnTracks uses Unix timestamp in 'tst' field
+                    # Skip non-location records (status messages, etc)
+                    if data.get("_type") != "location" and not (data.get("lat") and data.get("lon")):
+                        error_count += 1
+                        continue
                     tst = data.get("tst")
                     if tst:
                         try:
