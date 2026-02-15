@@ -8,9 +8,12 @@ manadia.wandanial.com {
 	}
 
 	# Dashboard (requires admin auth)
-	basic_auth /dashboard/* {
+	basic_auth /dashboard* {
 		admin ADMIN_HASH_PLACEHOLDER
 	}
+
+	# Redirect /dashboard to /dashboard/
+	redir /dashboard /dashboard/ 301
 
 	# Route dashboard to frontend service
 	handle /dashboard/* {

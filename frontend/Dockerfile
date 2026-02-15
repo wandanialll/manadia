@@ -16,12 +16,12 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install http-server
-RUN npm install -g http-server
+# Install serve (supports SPA fallback)
+RUN npm install -g serve
 
 # Copy only the built dist folder
 COPY --from=builder /app/dist ./dist
 
 EXPOSE 3000
 
-CMD ["http-server", "dist", "-p", "3000", "-c-1"]
+CMD ["serve", "dist", "-l", "3000", "-s"]
