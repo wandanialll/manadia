@@ -1,15 +1,15 @@
 manadia.wandanial.com {
 	basic_auth /pub {
-		owntracks OWNTRACKS_HASH_PLACEHOLDER
+		owntracks {$CADDY_OWNTRACKS_PASSWORD_HASH}
 	}
 
 	basic_auth /admin/* {
-		admin ADMIN_HASH_PLACEHOLDER
+		admin {$CADDY_ADMIN_PASSWORD_HASH}
 	}
 
 	# Dashboard (requires admin auth)
 	basic_auth /dashboard* {
-		admin ADMIN_HASH_PLACEHOLDER
+		admin {$CADDY_ADMIN_PASSWORD_HASH}
 	}
 
 	# Redirect /dashboard to /dashboard/
@@ -23,7 +23,7 @@ manadia.wandanial.com {
 
 	# Dashboard API calls (requires admin auth, strips /api prefix)
 	basic_auth /api/* {
-		admin ADMIN_HASH_PLACEHOLDER
+		admin {$CADDY_ADMIN_PASSWORD_HASH}
 	}
 
 	handle /api/* {

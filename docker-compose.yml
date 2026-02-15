@@ -46,6 +46,9 @@ services:
   caddy:
     image: caddy:latest
     restart: always
+    environment:
+      - CADDY_ADMIN_PASSWORD_HASH=${CADDY_ADMIN_PASSWORD_HASH}
+      - CADDY_OWNTRACKS_PASSWORD_HASH=${CADDY_OWNTRACKS_PASSWORD_HASH}
     ports:
       - "80:80"
       - "443:443"

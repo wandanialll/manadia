@@ -62,8 +62,9 @@ jobs:
 
             # Check if repo already exists, if so update it
             if [ -d .git ]; then
-              # Repository exists, just pull latest
-              git pull origin ${{ github.ref_name }}
+              # Force update to match remote (sed previously dirtied the tree)
+              git fetch origin ${{ github.ref_name }}
+              git reset --hard origin/${{ github.ref_name }}
             else
               # Repository doesn't exist, backup .env and clone fresh
               ENV_BACKUP="/tmp/manadia.env.backup"
@@ -111,17 +112,6 @@ jobs:
 
             if [ -z "$CADDY_OWNTRACKS_PASSWORD_HASH" ]; then
               echo "ERROR: CADDY_OWNTRACKS_PASSWORD_HASH is not set in .env file"
-              exit 1
-            fi
-
-            # Inject password hashes into Caddyfile from .env values
-            sed -i "s|OWNTRACKS_HASH_PLACEHOLDER|$CADDY_OWNTRACKS_PASSWORD_HASH|g" Caddyfile
-            sed -i "s|ADMIN_HASH_PLACEHOLDER|$CADDY_ADMIN_PASSWORD_HASH|g" Caddyfile
-
-            # Verify hashes were injected (should NOT contain placeholders)
-            if grep -q 'PLACEHOLDER' Caddyfile; then
-              echo "ERROR: Password hashes not injected into Caddyfile."
-              echo "Ensure CADDY_ADMIN_PASSWORD_HASH and CADDY_OWNTRACKS_PASSWORD_HASH are set in .env"
               exit 1
             fi
 
