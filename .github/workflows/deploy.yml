@@ -29,12 +29,19 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push backend image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ steps.image.outputs.name }}:latest
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.image.outputs.name }}-frontend:latest
 
       - name: Deploy to Droplet via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -43,13 +50,15 @@ jobs:
           username: ${{ secrets.USERNAME }}
           key: ${{ secrets.SSH_KEY }}
           passphrase: ${{ secrets.SSH_PASSPHRASE }}
+          command_timeout: 30m
           script: |
             # Create project directory
             mkdir -p /opt/location-logger
             cd /opt/location-logger
 
-            # Pull latest image (public package, no login needed)
+            # Pull latest images (public packages, no login needed)
             docker pull ${{ steps.image.outputs.name }}:latest
+            docker pull ${{ steps.image.outputs.name }}-frontend:latest
 
             # Check if repo already exists, if so update it
             if [ -d .git ]; then
