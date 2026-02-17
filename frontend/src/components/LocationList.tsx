@@ -33,7 +33,7 @@ export default function LocationList({
 						<Card key={idx} className="mx-1 my-2 py-3">
 							<CardContent className="flex flex-col gap-1 text-sm py-0">
 								<div className="flex justify-between items-center">
-									<span className="font-semibold">{loc.user_id}</span>
+									<span className="font-semibold">{loc.tracker_id}</span>
 									<span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
 										{loc.device_id || "Unknown"}
 									</span>

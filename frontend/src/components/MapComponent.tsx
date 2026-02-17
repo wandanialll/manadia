@@ -66,7 +66,7 @@ export default function MapComponent({ locations }: MapComponentProps) {
 							</button>
 						</div>
 						<p>
-							<strong>User:</strong> {selected.user_id}
+							<strong>User:</strong> {selected.tracker_id}
 						</p>
 						<p>
 							<strong>Device:</strong> {selected.device_id || "Unknown"}

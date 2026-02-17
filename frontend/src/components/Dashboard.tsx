@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import MapComponent from "./MapComponent";
 import LocationList from "./LocationList";
@@ -11,6 +12,7 @@ import { Card } from "./ui/card";
 
 export default function Dashboard() {
 	const { username, logout } = useAuth();
+	const navigate = useNavigate();
 	const [locations, setLocations] = useState<Location[]>([]);
 	const [filteredLocations, setFilteredLocations] = useState<Location[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -46,7 +48,7 @@ export default function Dashboard() {
 	useEffect(() => {
 		let filtered = locations;
 		if (selectedUser) {
-			filtered = filtered.filter((loc) => loc.user_id === selectedUser);
+			filtered = filtered.filter((loc) => loc.tracker_id === selectedUser);
 		}
 		if (selectedDevice) {
 			filtered = filtered.filter((loc) => loc.device_id === selectedDevice);
@@ -54,7 +56,9 @@ export default function Dashboard() {
 		setFilteredLocations(filtered);
 	}, [locations, selectedUser, selectedDevice]);
 
-	const uniqueUsers = [...new Set(locations.map((loc) => loc.user_id))];
+	const uniqueUsers = [
+		...new Set(locations.map((loc) => loc.tracker_id).filter(Boolean)),
+	] as string[];
 	const uniqueDevices = [
 		...new Set(
 			locations.flatMap((loc) => (loc.device_id ? [loc.device_id] : [])),
@@ -71,6 +75,19 @@ export default function Dashboard() {
 				<div className="flex justify-between items-center mx-3">
 					<h1>Manadia Dashboard</h1>
 					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() =>
+								navigate(
+									selectedUser
+										? `/current-location?user=${encodeURIComponent(selectedUser)}`
+										: "/current-location",
+								)
+							}
+						>
+							Current Location
+						</Button>
 						<Button
 							variant="outline"
 							size="sm"
